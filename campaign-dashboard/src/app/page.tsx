@@ -19,6 +19,10 @@ export default function CampaignDashboard() {
   const [error, setError] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(5);
+  // Modal state for creating a campaign
+  const [showModal, setShowModal] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newStatus, setNewStatus] = useState<'Active'|'Paused'>('Active');
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -49,23 +53,9 @@ export default function CampaignDashboard() {
     }
   };
 
-  const createCampaign = async () => {
+  const createCampaign = async (payload: {campaign_name: string, status: string, clicks?: number, cost?: number, impressions?: number}) => {
     try {
-      const name = window.prompt('Campaign name:');
-      if (!name) return;
-      let status = window.prompt('Status (Active or Paused):', 'Active') || 'Active';
-      status = status === 'Paused' ? 'Paused' : 'Active';
-
-      const payload = {
-        campaign_name: name,
-        status,
-        clicks: 0,
-        cost: 0.0,
-        impressions: 0,
-      };
-
       const url = `${API_URL}/campaigns`;
-      console.log('Creating campaign at', url, payload);
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -75,14 +65,25 @@ export default function CampaignDashboard() {
       if (!res.ok) {
         const text = await res.text();
         console.error('Create failed', res.status, text);
-        alert('Create failed: ' + (text || res.status));
-        return;
+        throw new Error(text || String(res.status));
       }
 
       await fetchCampaigns();
     } catch (err) {
       console.error('Error creating campaign:', err);
-      alert('Failed to create campaign');
+      throw err;
+    }
+  };
+
+  const handleSubmitNew = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    try {
+      await createCampaign({ campaign_name: newName, status: newStatus, clicks: 0, cost: 0.0, impressions: 0 });
+      setNewName('');
+      setNewStatus('Active');
+      setShowModal(false);
+    } catch (err) {
+      alert('Failed to create campaign. See console for details.');
     }
   };
 
@@ -158,7 +159,7 @@ export default function CampaignDashboard() {
                 Refresh
               </button>
               <button
-                onClick={createCampaign}
+                onClick={() => setShowModal(true)}
                 className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium shadow-lg shadow-indigo-200"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -389,6 +390,30 @@ export default function CampaignDashboard() {
           )}
         </div>
       </div>
+
+      {/* New Campaign Modal (simple) */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-6">
+            <h3 className="text-lg font-semibold mb-4">Create Campaign</h3>
+            <form onSubmit={handleSubmitNew}>
+              <label className="block mb-2 text-sm font-medium text-gray-700">Name</label>
+              <input required value={newName} onChange={(e) => setNewName(e.target.value)} className="w-full border border-gray-300 rounded-md px-3 py-2 mb-3" />
+
+              <label className="block mb-2 text-sm font-medium text-gray-700">Status</label>
+              <select value={newStatus} onChange={(e) => setNewStatus(e.target.value as 'Active'|'Paused')} className="w-full border border-gray-300 rounded-md px-3 py-2 mb-4">
+                <option value="Active">Active</option>
+                <option value="Paused">Paused</option>
+              </select>
+
+              <div className="flex justify-end gap-3">
+                <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 rounded-md bg-gray-100">Cancel</button>
+                <button type="submit" className="px-4 py-2 rounded-md bg-indigo-600 text-white">Create</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
